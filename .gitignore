@@ -387,3 +387,4 @@ local_settings.py
 *.swo
 .backup
 *.orig 
+*.pyc
