@@ -101,6 +101,30 @@ class Settings(BaseSettings):
     DEFAULT_PAGE_SIZE: int = 20
     MAX_PAGE_SIZE: int = 100
     
+    # Temporal Configuration
+    TEMPORAL_HOST: str = "localhost"
+    TEMPORAL_PORT: int = 7233
+    TEMPORAL_NAMESPACE: str = "default"
+    TEMPORAL_TLS_ENABLED: bool = False
+    TEMPORAL_DATA_CONVERTER: str = "default"  # Options: default, json, protobuf
+    
+    # Temporal Worker Configuration
+    TEMPORAL_TASK_QUEUE_INTEGRATION: str = "media-planner-integration"
+    TEMPORAL_TASK_QUEUE_SYNC: str = "media-planner-sync"
+    TEMPORAL_TASK_QUEUE_PLANNING: str = "media-planner-planning"
+    MAX_CONCURRENT_WORKFLOW_TASKS: int = 1000
+    MAX_CONCURRENT_ACTIVITY_TASKS: int = 1000
+    
+    # Temporal Workflow Configuration
+    DEFAULT_WORKFLOW_TIMEOUT_HOURS: int = 24
+    DEFAULT_ACTIVITY_TIMEOUT_MINUTES: int = 10
+    WORKFLOW_EXECUTION_RETENTION_DAYS: int = 7
+    
+    @property
+    def temporal_address(self) -> str:
+        """Get the full Temporal server address."""
+        return f"{self.TEMPORAL_HOST}:{self.TEMPORAL_PORT}"
+    
     class Config:
         """Pydantic configuration."""
         env_file = ".env"

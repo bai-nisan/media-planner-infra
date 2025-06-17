@@ -1,0 +1,71 @@
+# Temporal Dynamic Configuration for Development with SQL Backend
+# This file contains runtime configuration options for Temporal server
+
+# Increase limits for development and testing
+system.forceSearchAttributesCacheRefreshOnRead:
+  - value: true
+
+# Workflow execution settings
+limit.maxIDLength:
+  - value: 1000
+
+# History service configuration
+history.maxAutoResetPoints:
+  - value: 20
+
+# Enable advanced visibility features
+system.enableAdvancedVisibilityReadMode:
+  - value: true
+
+# Worker settings for better performance
+worker.buildIdScavengerEnabled:
+  - value: true
+
+# Retention settings (7 days for development)
+system.defaultWorkflowRetentionTTL:
+  - value: "168h"  # 7 days
+
+# Search attributes configuration
+system.forceSearchAttributesCacheRefreshOnRead:
+  - value: true
+
+# Archival settings
+system.enableWorkflowExecutionHistoryArchival:
+  - value: false
+  
+system.enableVisibilityArchival:
+  - value: false
+
+# Performance tuning for development
+system.transactionSizeLimit:
+  - value: 4194304  # 4MB
+
+# Frontend service rate limits
+frontend.rps:
+  - value: 1200
+
+# History service rate limits  
+history.rps:
+  - value: 3000
+
+# Matching service settings
+matching.numTaskqueueReadPartitions:
+  - value: 4
+
+matching.numTaskqueueWritePartitions:
+  - value: 4
+
+# Worker versioning
+worker.enableWorkerVersioningDataAPIs:
+  - value: true
+
+worker.enableWorkerVersioningWorkflowAPIs:
+  - value: true
+
+# Namespace settings
+system.enableNamespaceNotActiveAutoForwarding:
+  - value: true
+
+# Enable metrics collection
+system.enableActivityEagerExecution:
+  - value: true 
