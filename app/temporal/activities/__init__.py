@@ -6,6 +6,7 @@ This module contains all activity definitions for:
 - Meta Ads integration  
 - Google Drive integration
 - Common utilities and error handling
+- Sync-specific operations for scheduled synchronization
 """
 
 from .google_ads_activities import (
@@ -38,6 +39,12 @@ from .common_activities import (
     send_notification,
     log_integration_event,
     handle_integration_error,
+    # Sync-specific activities
+    validate_sync_data,
+    resolve_data_conflicts,
+    log_sync_event,
+    store_sync_checkpoint,
+    load_sync_checkpoint,
 )
 
 __all__ = [
@@ -68,4 +75,11 @@ __all__ = [
     "send_notification",
     "log_integration_event", 
     "handle_integration_error",
+    
+    # Sync-specific activities
+    "validate_sync_data",
+    "resolve_data_conflicts",
+    "log_sync_event",
+    "store_sync_checkpoint",
+    "load_sync_checkpoint",
 ]

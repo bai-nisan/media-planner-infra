@@ -120,6 +120,36 @@ class Settings(BaseSettings):
     DEFAULT_ACTIVITY_TIMEOUT_MINUTES: int = 10
     WORKFLOW_EXECUTION_RETENTION_DAYS: int = 7
     
+    # Google API Configuration
+    GOOGLE_OAUTH_CLIENT_ID: Optional[str] = None
+    GOOGLE_OAUTH_CLIENT_SECRET: Optional[str] = None
+    GOOGLE_CLIENT_SECRETS_FILE: str = "config/client_secrets.json"
+    GOOGLE_CREDENTIALS_FILE: str = "config/google_credentials.json"
+    GOOGLE_APPLICATION_NAME: str = "Media Planning Platform"
+    
+    # Google Ads API Configuration
+    GOOGLE_ADS_DEVELOPER_TOKEN: Optional[str] = None
+    GOOGLE_ADS_CUSTOMER_ID: Optional[str] = None
+    GOOGLE_ADS_CONFIG_FILE: str = "config/google-ads.yaml"
+    GOOGLE_ADS_LOGIN_CUSTOMER_ID: Optional[str] = None  # Manager account ID
+    
+    # Google API Scopes
+    GOOGLE_DRIVE_SCOPES: List[str] = [
+        "https://www.googleapis.com/auth/drive.metadata.readonly",
+        "https://www.googleapis.com/auth/drive.file"
+    ]
+    GOOGLE_SHEETS_SCOPES: List[str] = [
+        "https://www.googleapis.com/auth/spreadsheets"
+    ]
+    GOOGLE_ADS_SCOPES: List[str] = [
+        "https://www.googleapis.com/auth/adwords"
+    ]
+    
+    @property
+    def all_google_scopes(self) -> List[str]:
+        """Get all Google API scopes combined."""
+        return self.GOOGLE_DRIVE_SCOPES + self.GOOGLE_SHEETS_SCOPES + self.GOOGLE_ADS_SCOPES
+    
     @property
     def temporal_address(self) -> str:
         """Get the full Temporal server address."""

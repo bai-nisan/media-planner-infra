@@ -6,6 +6,7 @@ This module contains all workflow definitions for:
 - Meta Ads integration
 - Google Drive integration
 - Combined platform integrations
+- Scheduled synchronization workflows
 """
 
 from .google_ads_workflows import (
@@ -32,6 +33,13 @@ from .integration_orchestrator import (
     IntegrationHealthCheckWorkflow,
 )
 
+from .sync_workflows import (
+    ScheduledSyncWorkflow,
+    MultiTenantSyncOrchestratorWorkflow,
+    ConflictResolutionWorkflow,
+    SyncHealthMonitorWorkflow,
+)
+
 __all__ = [
     # Google Ads workflows
     "GoogleAdsIntegrationWorkflow",
@@ -52,4 +60,10 @@ __all__ = [
     "PlatformIntegrationOrchestratorWorkflow",
     "MultiPlatformDataSyncWorkflow",
     "IntegrationHealthCheckWorkflow",
+    
+    # Sync workflows
+    "ScheduledSyncWorkflow",
+    "MultiTenantSyncOrchestratorWorkflow",
+    "ConflictResolutionWorkflow",
+    "SyncHealthMonitorWorkflow",
 ]
