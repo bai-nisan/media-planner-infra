@@ -6,13 +6,23 @@ Includes all endpoint routers and organizes API structure.
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import health, campaigns, tenants
+from app.api.v1.endpoints import health, campaigns, tenants, database, auth
 
 # Create main API router
 api_router = APIRouter()
 
 # Include endpoint routers
 api_router.include_router(health.router, tags=["health"])
+api_router.include_router(
+    auth.router,
+    prefix="/auth",
+    tags=["authentication"]
+)
+api_router.include_router(
+    database.router,
+    prefix="/database",
+    tags=["database"]
+)
 api_router.include_router(
     tenants.router,
     prefix="/tenants",
