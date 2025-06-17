@@ -23,9 +23,22 @@ class Settings(BaseSettings):
     
     # CORS Configuration
     CORS_ORIGINS: List[str] = [
+        # Local development URLs
         "http://localhost:3000",  # React frontend (development)
         "http://localhost:8080",  # Alternative frontend port
         "https://localhost:3000", # HTTPS development
+        
+        # Lovable platform URLs
+        "https://lovable.dev",     # Lovable platform domain
+        "https://*.lovable.dev",   # Lovable subdomains
+        "https://*.lovable.app",   # Lovable app domains
+        
+        # Specific Lovable project URL (from README)
+        "https://lovable.dev/projects/ba9f62a7-06d2-415f-95fa-954218aa84e4",
+        
+        # Additional development and staging environments
+        "https://staging.lovable.dev",
+        "https://preview.lovable.dev",
     ]
     
     @validator("CORS_ORIGINS", pre=True)

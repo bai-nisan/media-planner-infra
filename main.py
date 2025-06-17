@@ -7,9 +7,12 @@ Entry point for the application.
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
 
 from app.core.config import settings
 from app.api.v1.api import api_router
+from app.middleware.error_handling import ErrorHandlingMiddleware, create_exception_handlers
+from app.core.exceptions import MediaPlannerException
 
 # Create FastAPI application instance
 app = FastAPI(
@@ -21,6 +24,12 @@ app = FastAPI(
     openapi_url="/api/v1/openapi.json"
 )
 
+# Add error handling middleware
+app.add_middleware(
+    ErrorHandlingMiddleware,
+    include_details_in_prod=False  # Set to True if you want detailed errors in production
+)
+
 # Configure CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -29,6 +38,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add global exception handlers
+exception_handlers = create_exception_handlers()
+for exception_type, handler in exception_handlers.items():
+    app.add_exception_handler(exception_type, handler)
 
 # Include API router
 app.include_router(api_router, prefix="/api/v1")
