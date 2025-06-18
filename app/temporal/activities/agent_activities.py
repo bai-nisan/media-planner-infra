@@ -147,7 +147,7 @@ async def execute_supervisor_workflow_activity(
         )
         
         # Add initial message with workflow input data
-        from langchain.schema import HumanMessage
+        from langchain_core.messages import HumanMessage
         initial_message = HumanMessage(
             content="Start campaign planning workflow",
             additional_kwargs={
