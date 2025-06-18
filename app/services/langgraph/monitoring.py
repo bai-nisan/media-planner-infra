@@ -21,7 +21,7 @@ import threading
 from contextlib import contextmanager
 import uuid
 
-from .state_models import AgentRole, WorkflowStage, AgentState
+from .workflows.state_models import AgentRole, WorkflowStage, AgentState
 from .error_handler import ErrorHandler, ErrorSeverity
 
 logger = logging.getLogger(__name__)
