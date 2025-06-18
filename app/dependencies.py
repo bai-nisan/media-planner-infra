@@ -16,6 +16,7 @@ from app.services.google import (
     GoogleSheetsClient, 
     GoogleAdsClient
 )
+from app.services.langgraph.agent_service import get_agent_service, AgentService
 from app.core.config import Settings, get_settings
 
 
@@ -241,3 +242,26 @@ def verify_google_auth(
         )
     
     return auth_manager 
+
+
+# Agent Service Dependencies
+
+async def get_agent_service_dependency() -> AgentService:
+    """
+    Get the LangGraph agent service instance.
+    
+    Returns:
+        AgentService: The agent service instance
+        
+    Raises:
+        HTTPException: If agent service is not available
+    """
+    try:
+        agent_service = await get_agent_service()
+        return agent_service
+    except Exception as e:
+        logger.error(f"Failed to get agent service: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"Agent service is not available: {str(e)}"
+        ) 

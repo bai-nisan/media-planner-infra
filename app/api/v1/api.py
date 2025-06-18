@@ -6,7 +6,7 @@ Includes all endpoint routers and organizes API structure.
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import health, campaigns, tenants, database, auth, websocket
+from app.api.v1.endpoints import health, campaigns, tenants, database, auth, websocket, agents
 
 # Create main API router
 api_router = APIRouter()
@@ -36,4 +36,9 @@ api_router.include_router(
 api_router.include_router(
     websocket.router,
     tags=["websocket", "real-time"]
-) 
+)
+api_router.include_router(
+    agents.router,
+    prefix="/agents",
+    tags=["agents", "multi-agent-system"]
+)

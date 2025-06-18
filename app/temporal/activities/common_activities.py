@@ -91,7 +91,7 @@ async def validate_data_integrity(
 
 
 @activity.defn
-async def store_integration_data(
+async def   store_integration_data(
     data: Dict[str, Any],
     storage_config: Dict[str, Any],
     tenant_id: str

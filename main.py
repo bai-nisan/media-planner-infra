@@ -18,6 +18,7 @@ from app.middleware.error_handling import ErrorHandlingMiddleware, create_except
 from app.core.exceptions import MediaPlannerException
 from app.temporal.client import get_temporal_client, close_temporal_client
 from app.services.temporal_service import TemporalService
+from app.services.langgraph.agent_service import get_agent_service
 from app.dependencies import get_temporal_service
 
 logger = logging.getLogger(__name__)
@@ -42,6 +43,17 @@ async def lifespan(app: FastAPI):
         app.state.temporal_client = temporal_client
         app.state.temporal_service = TemporalService(temporal_client, settings)
         
+        # Initialize LangGraph agent service
+        try:
+            agent_service = await get_agent_service()
+            app.state.agent_service = agent_service
+            logger.info("LangGraph agent service initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize agent service: {e}")
+            # Continue without agent service for now - this allows the app to start
+            # even if agents are not fully configured
+            app.state.agent_service = None
+        
         yield
         
     except Exception as e:
@@ -51,6 +63,11 @@ async def lifespan(app: FastAPI):
         # Cleanup on shutdown
         logger.info("Shutting down Media Planning Platform API")
         try:
+            # Shutdown agent service if initialized
+            if hasattr(app.state, 'agent_service') and app.state.agent_service:
+                await app.state.agent_service.shutdown()
+                logger.info("Agent service shutdown completed")
+            
             await close_temporal_client()
             logger.info("Temporal client disconnected successfully")
         except Exception as e:

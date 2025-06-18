@@ -57,24 +57,26 @@ class AgentService:
                 supabase_client=self.supabase_client
             )
             
-            # TODO: Initialize other agents when implemented
-            # planning_config = self.config.agents[AgentType.PLANNING]
-            # self.agents[AgentType.PLANNING] = PlanningAgent(
-            #     config=planning_config,
-            #     supabase_client=self.supabase_client
-            # )
+            # Initialize Planning Agent
+            planning_config = self.config.agents[AgentType.PLANNING]
+            self.agents[AgentType.PLANNING] = PlanningAgent(
+                config=planning_config,
+                supabase_client=self.supabase_client
+            )
             
-            # insights_config = self.config.agents[AgentType.INSIGHTS]
-            # self.agents[AgentType.INSIGHTS] = InsightsAgent(
-            #     config=insights_config,
-            #     supabase_client=self.supabase_client
-            # )
+            # Initialize Insights Agent
+            insights_config = self.config.agents[AgentType.INSIGHTS]
+            self.agents[AgentType.INSIGHTS] = InsightsAgent(
+                config=insights_config,
+                supabase_client=self.supabase_client
+            )
             
-            # supervisor_config = self.config.agents[AgentType.SUPERVISOR]
-            # self.agents[AgentType.SUPERVISOR] = SupervisorAgent(
-            #     config=supervisor_config,
-            #     supabase_client=self.supabase_client
-            # )
+            # Initialize Supervisor Agent
+            supervisor_config = self.config.agents[AgentType.SUPERVISOR]
+            self.agents[AgentType.SUPERVISOR] = SupervisorAgent(
+                config=supervisor_config,
+                supabase_client=self.supabase_client
+            )
             
             logger.info(f"Initialized {len(self.agents)} agents")
             
