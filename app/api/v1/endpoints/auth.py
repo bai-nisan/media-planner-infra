@@ -1,9 +1,11 @@
 """
-Authentication endpoints for JWT token handling and service authentication.
+Authentication endpoints for JWT tokens, service tokens, and Google credential management.
 
-Provides endpoints for token generation, validation, and service-to-service authentication.
+Provides secure authentication for users and services, plus credential storage
+for Google API integrations used by LangGraph agents.
 """
 
+import logging
 from datetime import timedelta, datetime
 from typing import Dict, List, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Form
@@ -20,6 +22,8 @@ from app.services.auth import (
     require_scopes,
     require_service_identity
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -63,6 +67,37 @@ class ServiceRegistryResponse(BaseModel):
     total_count: int
 
 
+# Google Credentials Models
+class GoogleCredentialsRequest(BaseModel):
+    """Request model for storing Google credentials."""
+    tenant_id: Optional[str] = None
+    credentials: Optional[Dict[str, Any]] = None
+    # Supabase provider token fields
+    provider_token: Optional[str] = None
+    provider_refresh_token: Optional[str] = None
+    user_email: Optional[str] = None
+
+
+class GoogleCredentialsResponse(BaseModel):
+    """Response model for Google credentials retrieval."""
+    service_id: str
+    tenant_id: Optional[str] = None
+    credentials: Dict[str, Any]
+    stored_at: datetime
+    expires_at: Optional[datetime] = None
+
+
+class CredentialStatusResponse(BaseModel):
+    """Response model for credential status."""
+    service_id: str
+    tenant_id: Optional[str] = None
+    has_credentials: bool
+    credentials_valid: bool
+    expires_at: Optional[datetime] = None
+    scopes: List[str] = []
+    last_refreshed: Optional[datetime] = None
+
+
 @router.post("/token", response_model=Token)
 async def create_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
@@ -71,57 +106,36 @@ async def create_access_token(
     """
     OAuth2 compatible token endpoint for user authentication.
     
-    This endpoint accepts username/password credentials and returns a JWT token.
-    Currently configured for development - integrates with your existing user system.
+    Returns JWT access token for API authentication.
     """
-    # For development, we'll accept any credentials
-    # In production, this would validate against your user database
-    if not form_data.username or not form_data.password:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username and password required"
-        )
-    
-    # Development mode - accept test credentials
+    # In a real application, verify username/password against database
+    # For development, use simple hardcoded check
     if form_data.username == "admin" and form_data.password == "admin123":
-        user_data = {
+        token_data = {
             "sub": form_data.username,
-            "user_type": "admin",
+            "service_type": "user",
             "tenant_id": "default"
         }
-        scopes = ["read", "write", "admin", "ai:execute", "ai:manage"]
-    elif form_data.username.startswith("dev"):
-        user_data = {
-            "sub": form_data.username,
-            "user_type": "developer", 
-            "tenant_id": "default"
-        }
-        scopes = ["read", "write", "ai:execute"]
+        
+        # Include requested scopes
+        scopes = form_data.scopes if form_data.scopes else ["read", "write"]
+        
+        access_token = auth_service.create_access_token(
+            data=token_data,
+            scopes=scopes
+        )
+        
+        return Token(
+            access_token=access_token,
+            token_type="bearer",
+            expires_in=auth_service.settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        )
     else:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials",
+            detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
-    # Apply requested scopes (intersection with allowed scopes)
-    requested_scopes = form_data.scopes if form_data.scopes else scopes
-    final_scopes = list(set(requested_scopes) & set(scopes))
-    
-    # Create access token
-    access_token_expires = timedelta(minutes=auth_service.settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = auth_service.create_access_token(
-        data=user_data,
-        expires_delta=access_token_expires,
-        scopes=final_scopes
-    )
-    
-    return Token(
-        access_token=access_token,
-        token_type="bearer",
-        expires_in=auth_service.settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        scope=" ".join(final_scopes) if final_scopes else None
-    )
 
 
 @router.post("/service-token", response_model=ServiceTokenResponse)
@@ -203,6 +217,369 @@ async def validate_token(
             token_data=None,
             expires_in_seconds=None,
             service_identity=None
+        )
+
+
+# Google Credentials Endpoints
+@router.post("/credentials/google/{service_id}", response_model=Dict[str, str])
+@require_scopes(["ai:execute", "external:write"])
+async def store_google_credentials(
+    service_id: str,
+    request: GoogleCredentialsRequest,
+    current_user: TokenData = Depends(get_current_user),
+    auth_service: AuthenticationService = Depends(get_auth_service)
+) -> Dict[str, str]:
+    """
+    Store Google OAuth credentials for a service.
+    
+    Requires ai:execute and external:write permissions.
+    Credentials are encrypted and stored securely.
+    """
+    try:
+        # Validate service exists
+        if service_id not in auth_service.service_registry:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Service '{service_id}' not found in registry"
+            )
+        
+        # Store credentials securely using Supabase Vault
+        from app.services.credential_storage import get_credential_storage, GoogleOAuthCredentials
+        credential_storage = get_credential_storage()
+        
+        # Handle both traditional credentials and Supabase provider tokens
+        if request.provider_token:
+            # Supabase provider token format
+            credentials = GoogleOAuthCredentials(
+                access_token=request.provider_token,
+                refresh_token=request.provider_refresh_token,
+                token_uri="https://oauth2.googleapis.com/token",
+                client_id="",  # Will be filled from settings
+                client_secret="",  # Will be filled from settings
+                scopes=["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/spreadsheets"],
+                user_email=request.user_email
+            )
+        else:
+            # Traditional credentials format
+            cred_data = request.credentials or {}
+            credentials = GoogleOAuthCredentials(
+                access_token=cred_data.get("access_token", ""),
+                refresh_token=cred_data.get("refresh_token"),
+                token_uri=cred_data.get("token_uri", "https://oauth2.googleapis.com/token"),
+                client_id=cred_data.get("client_id", ""),
+                client_secret=cred_data.get("client_secret", ""),
+                scopes=cred_data.get("scopes", [])
+            )
+        
+        # Store in Supabase Vault
+        success = await credential_storage.store_google_credentials(
+            service_id=service_id,
+            tenant_id=request.tenant_id or "default",
+            credentials=credentials,
+            stored_by=current_user.sub
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to store credentials securely"
+            )
+        
+        return {
+            "message": "Credentials stored successfully",
+            "service_id": service_id,
+            "tenant_id": request.tenant_id or "default"
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to store credentials for {service_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to store credentials"
+        )
+
+
+@router.get("/credentials/google/{service_id}", response_model=GoogleCredentialsResponse)
+@require_scopes(["ai:execute", "external:read"])
+async def retrieve_google_credentials(
+    service_id: str,
+    tenant_id: Optional[str] = None,
+    current_user: TokenData = Depends(get_current_user),
+    auth_service: AuthenticationService = Depends(get_auth_service)
+) -> GoogleCredentialsResponse:
+    """
+    Retrieve Google OAuth credentials for a service.
+    
+    Requires ai:execute and external:read permissions.
+    Returns decrypted credentials for API usage.
+    """
+    try:
+        # Validate service exists
+        if service_id not in auth_service.service_registry:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Service '{service_id}' not found in registry"
+            )
+        
+        # Retrieve credentials from Supabase Vault
+        from app.services.credential_storage import get_credential_storage
+        credential_storage = get_credential_storage()
+        
+        stored_credentials = await credential_storage.retrieve_google_credentials(
+            service_id=service_id,
+            tenant_id=tenant_id or "default"
+        )
+        
+        if not stored_credentials:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No credentials found for service {service_id}"
+            )
+        
+        credentials = stored_credentials.to_dict()
+        
+        return GoogleCredentialsResponse(
+            service_id=service_id,
+            tenant_id=tenant_id,
+            credentials=credentials,
+            stored_at=datetime.utcnow(),
+            expires_at=datetime.utcnow() + timedelta(hours=1)
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to retrieve credentials for {service_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve credentials"
+        )
+
+
+@router.get("/credentials/google/{service_id}/status", response_model=CredentialStatusResponse)
+@require_scopes(["ai:execute"])
+async def check_credential_status(
+    service_id: str,
+    tenant_id: Optional[str] = None,
+    current_user: TokenData = Depends(get_current_user),
+    auth_service: AuthenticationService = Depends(get_auth_service)
+) -> CredentialStatusResponse:
+    """
+    Check the status of stored Google credentials.
+    
+    Requires ai:execute permissions.
+    Returns credential validity and expiration info without exposing tokens.
+    """
+    try:
+        # Validate service exists
+        if service_id not in auth_service.service_registry:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Service '{service_id}' not found in registry"
+            )
+        
+        # Check credential status using Supabase Vault
+        from app.services.credential_storage import get_credential_storage
+        credential_storage = get_credential_storage()
+        
+        status_info = await credential_storage.check_credential_status(
+            service_id=service_id,
+            tenant_id=tenant_id or "default"
+        )
+        
+        return CredentialStatusResponse(
+            service_id=service_id,
+            tenant_id=tenant_id,
+            has_credentials=status_info["has_credentials"],
+            credentials_valid=status_info["credentials_valid"],
+            expires_at=status_info["expires_at"],
+            scopes=status_info["scopes"],
+            last_refreshed=status_info.get("created_at")
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to check credential status for {service_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to check credential status"
+        )
+
+
+@router.delete("/credentials/google/{service_id}", response_model=Dict[str, str])
+@require_scopes(["ai:execute", "external:write"])
+async def revoke_google_credentials(
+    service_id: str,
+    tenant_id: Optional[str] = None,
+    current_user: TokenData = Depends(get_current_user),
+    auth_service: AuthenticationService = Depends(get_auth_service)
+) -> Dict[str, str]:
+    """
+    Revoke and delete Google OAuth credentials for a service.
+    
+    Requires ai:execute and external:write permissions.
+    Permanently removes stored credentials.
+    """
+    try:
+        # Validate service exists
+        if service_id not in auth_service.service_registry:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Service '{service_id}' not found in registry"
+            )
+        
+        # Revoke credentials using Supabase Vault
+        from app.services.credential_storage import get_credential_storage
+        credential_storage = get_credential_storage()
+        
+        success = await credential_storage.revoke_credentials(
+            service_id=service_id,
+            tenant_id=tenant_id or "default"
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to revoke credentials"
+            )
+        
+        return {
+            "message": "Credentials revoked successfully",
+            "service_id": service_id,
+            "tenant_id": tenant_id or "default"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to revoke credentials for {service_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to revoke credentials"
+        )
+
+
+@router.get("/credentials/google", response_model=List[Dict[str, Any]])
+@require_scopes(["ai:execute"])
+async def list_google_credentials(
+    tenant_id: Optional[str] = None,
+    current_user: TokenData = Depends(get_current_user),
+    auth_service: AuthenticationService = Depends(get_auth_service)
+) -> List[Dict[str, Any]]:
+    """
+    List all Google OAuth credentials for a tenant.
+    
+    Requires ai:execute permissions.
+    Returns credential metadata without sensitive data.
+    """
+    try:
+        from app.services.credential_storage import get_credential_storage
+        credential_storage = get_credential_storage()
+        
+        credentials = await credential_storage.list_credentials(
+            tenant_id=tenant_id or "default"
+        )
+        
+        # Filter for Google OAuth credentials only
+        google_credentials = [
+            cred for cred in credentials 
+            if cred["credential_type"] == "google_oauth"
+        ]
+        
+        return google_credentials
+        
+    except Exception as e:
+        logger.error(f"Failed to list credentials: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to list credentials"
+        )
+
+
+@router.post("/credentials/google/{service_id}/refresh", response_model=Dict[str, str])
+@require_scopes(["ai:execute", "external:write"])
+async def refresh_google_credentials(
+    service_id: str,
+    request: GoogleCredentialsRequest,
+    tenant_id: Optional[str] = None,
+    current_user: TokenData = Depends(get_current_user),
+    auth_service: AuthenticationService = Depends(get_auth_service)
+) -> Dict[str, str]:
+    """
+    Refresh Google OAuth credentials with new tokens.
+    
+    Requires ai:execute and external:write permissions.
+    Updates existing credentials with new access/refresh tokens.
+    """
+    try:
+        # Validate service exists
+        if service_id not in auth_service.service_registry:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Service '{service_id}' not found in registry"
+            )
+        
+        from app.services.credential_storage import get_credential_storage, GoogleOAuthCredentials
+        credential_storage = get_credential_storage()
+        
+        # Handle both traditional credentials and Supabase provider tokens
+        if request.provider_token:
+            # Supabase provider token format
+            new_credentials = GoogleOAuthCredentials(
+                access_token=request.provider_token,
+                refresh_token=request.provider_refresh_token,
+                token_uri="https://oauth2.googleapis.com/token",
+                client_id="",  # Will be preserved from existing
+                client_secret="",  # Will be preserved from existing
+                scopes=["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/spreadsheets"],
+                user_email=request.user_email,
+                expires_at=datetime.utcnow() + timedelta(hours=1)  # Default 1 hour
+            )
+        else:
+            # Traditional credentials format
+            cred_data = request.credentials or {}
+            expires_at = None
+            if cred_data.get("expires_in"):
+                expires_at = datetime.utcnow() + timedelta(seconds=int(cred_data["expires_in"]))
+            
+            new_credentials = GoogleOAuthCredentials(
+                access_token=cred_data.get("access_token", ""),
+                refresh_token=cred_data.get("refresh_token"),
+                token_uri=cred_data.get("token_uri", "https://oauth2.googleapis.com/token"),
+                client_id=cred_data.get("client_id", ""),
+                client_secret=cred_data.get("client_secret", ""),
+                scopes=cred_data.get("scopes", []),
+                expires_at=expires_at
+            )
+        
+        # Refresh credentials in Supabase Vault
+        success = await credential_storage.refresh_google_credentials(
+            service_id=service_id,
+            tenant_id=tenant_id or "default",
+            new_credentials=new_credentials,
+            updated_by=current_user.sub
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to refresh credentials"
+            )
+        
+        return {
+            "message": "Credentials refreshed successfully",
+            "service_id": service_id,
+            "tenant_id": tenant_id or "default"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to refresh credentials for {service_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to refresh credentials"
         )
 
 
@@ -327,6 +704,14 @@ async def auth_health_check() -> Dict[str, Any]:
             "service_token": "/api/v1/auth/service-token", 
             "validate": "/api/v1/auth/validate-token",
             "me": "/api/v1/auth/me",
-            "services": "/api/v1/auth/services"
+            "services": "/api/v1/auth/services",
+            "google_credentials": {
+                "store": "/api/v1/auth/credentials/google/{service_id}",
+                "retrieve": "/api/v1/auth/credentials/google/{service_id}",
+                "status": "/api/v1/auth/credentials/google/{service_id}/status",
+                "refresh": "/api/v1/auth/credentials/google/{service_id}/refresh",
+                "revoke": "/api/v1/auth/credentials/google/{service_id}",
+                "list": "/api/v1/auth/credentials/google"
+            }
         }
     } 

@@ -18,6 +18,7 @@ from passlib.context import CryptContext
 from pydantic import BaseModel
 
 from app.core.config import get_settings
+from supabase import create_client, Client
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,16 @@ class AuthenticationService:
         """Initialize the authentication service."""
         self.settings = get_settings()
         self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        
+        # Initialize Supabase client for token validation
+        if hasattr(self.settings, 'SUPABASE_URL') and hasattr(self.settings, 'SUPABASE_ANON_KEY'):
+            self.supabase: Client = create_client(
+                self.settings.SUPABASE_URL, 
+                self.settings.SUPABASE_ANON_KEY
+            )
+        else:
+            self.supabase = None
+            logger.warning("Supabase credentials not found - Supabase auth disabled")
         
         # OAuth2 scheme for token extraction
         self.oauth2_scheme = OAuth2PasswordBearer(
@@ -207,9 +218,60 @@ class AuthenticationService:
             
         except JWTError as e:
             logger.warning(f"JWT validation error: {str(e)}")
+            # Try Supabase token validation as fallback
+            if self.supabase:
+                return self.verify_supabase_token(token)
             raise credentials_exception
         except Exception as e:
             logger.error(f"Token verification error: {str(e)}")
+            raise credentials_exception
+    
+    def verify_supabase_token(self, token: str) -> TokenData:
+        """
+        Verify a Supabase JWT token.
+        
+        Args:
+            token: Supabase JWT token string
+            
+        Returns:
+            TokenData with user information from Supabase
+            
+        Raises:
+            HTTPException: If token is invalid or Supabase is not configured
+        """
+        credentials_exception = HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate Supabase credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        
+        if not self.supabase:
+            logger.error("Supabase client not configured")
+            raise credentials_exception
+        
+        try:
+            # Get user from Supabase using the token
+            response = self.supabase.auth.get_user(token)
+            
+            if not response.user:
+                raise credentials_exception
+            
+            user = response.user
+            
+            # Create TokenData from Supabase user
+            token_data = TokenData(
+                sub=user.email or user.id,
+                scopes=["read", "write", "ai:execute", "external:read", "external:write"],  # Default scopes for Supabase users
+                service_type="user",
+                tenant_id="default",  # You might want to extract this from user metadata
+                exp=None  # Supabase handles expiration
+            )
+            
+            logger.info(f"Supabase token verified for user: {user.email}")
+            return token_data
+            
+        except Exception as e:
+            logger.error(f"Supabase token verification error: {str(e)}")
             raise credentials_exception
     
     def create_service_token(
