@@ -388,3 +388,4 @@ local_settings.py
 .backup
 *.orig 
 *.pyc
+.langgraph_api/

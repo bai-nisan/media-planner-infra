@@ -55,7 +55,8 @@ class Settings(BaseSettings):
     
     # Supabase Configuration
     SUPABASE_URL: str = "https://placeholder.supabase.co"
-    SUPABASE_KEY: str = "placeholder_key"
+    SUPABASE_ANON_KEY: str = "placeholder_anon_key"
+    SUPABASE_SERVICE_ROLE_KEY: str = "placeholder_service_key"
     SUPABASE_JWT_SECRET: str = "placeholder_jwt_secret"
     
     # Redis Configuration (for caching)
@@ -145,6 +146,12 @@ class Settings(BaseSettings):
     XAI_API_KEY: Optional[str] = None
     OLLAMA_API_KEY: Optional[str] = None
     OLLAMA_BASE_URL: str = "http://localhost:11434/api"
+    
+    # LangGraph/LangSmith Configuration
+    LANGSMITH_API_KEY: Optional[str] = None
+    LANGGRAPH_AUTH_TYPE: str = "noop"  # For LangGraph Studio development
+    POSTGRES_URI: Optional[str] = None  # For LangGraph checkpointing
+    REDIS_URI: Optional[str] = None  # For LangGraph caching
 
     # Google API Scopes
     GOOGLE_DRIVE_SCOPES: List[str] = [
