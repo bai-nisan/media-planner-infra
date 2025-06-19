@@ -246,12 +246,28 @@ class CreateCampaignCommand:
 
 ### Step-by-Step Migration Process
 
-1. **Parallel Development**
+1. **Environment Setup (Day 1)**
+   ```bash
+   # Setup new virtual environment
+   python -m venv venv-refactor
+   source venv-refactor/bin/activate
+   
+   # Install dependencies
+   pip install --upgrade pip
+   pip install -r requirements.txt
+   pip install -r requirements-dev.txt
+   
+   # Create development scripts
+   mkdir scripts
+   chmod +x scripts/*.sh
+   ```
+
+2. **Parallel Development**
    - Keep existing `app/` directory functional
    - Build new structure in `src/` directory
    - Gradually migrate components
 
-2. **Component Migration Order**
+3. **Component Migration Order**
    - Core configuration and dependencies
    - Domain entities and value objects
    - Repository interfaces and implementations
@@ -259,10 +275,18 @@ class CreateCampaignCommand:
    - API routers
    - External service integrations
 
-3. **Testing During Migration**
+4. **Testing During Migration**
    - Maintain existing tests
    - Add new tests for refactored components
    - Ensure feature parity
+
+5. **Development Workflow Integration**
+   ```bash
+   # Daily development routine
+   source venv/bin/activate
+   ./scripts/lint.sh  # Before committing
+   ./scripts/test.sh  # Before pushing
+   ```
 
 ## Code Quality Standards
 
@@ -273,6 +297,74 @@ class CreateCampaignCommand:
 3. **Documentation**: Docstrings for all classes and public methods
 4. **Error Handling**: Proper exception handling with custom exceptions
 5. **Testing**: Minimum 80% code coverage
+
+### Environment Setup and Dependency Management
+
+#### Virtual Environment Setup
+```bash
+# Create virtual environment (Python 3.11+)
+python -m venv venv
+
+# Activate virtual environment
+source venv/bin/activate  # Linux/Mac
+# or
+venv\Scripts\activate     # Windows
+
+# Upgrade pip to latest version
+pip install --upgrade pip
+```
+
+#### Development Dependencies
+```bash
+# Install core runtime dependencies
+pip install fastapi uvicorn python-multipart python-jose
+pip install supabase temporalio redis pydantic-settings
+pip install google-auth google-auth-oauthlib google-api-python-client
+pip install langgraph
+
+# Install development dependencies
+pip install black isort flake8 mypy pytest pytest-cov
+pip install pytest-asyncio httpx pytest-mock
+
+# Install testing dependencies
+pip install factory-boy faker pytest-xdist
+
+# Create requirements files
+pip freeze > requirements.txt
+pip freeze | grep -E "(pytest|black|isort|flake8|mypy)" > requirements-dev.txt
+```
+
+#### Requirements File Structure
+```
+# requirements.txt - Core runtime dependencies
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+supabase>=2.3.0
+temporalio>=1.5.0
+redis>=5.0.0
+python-multipart>=0.0.6
+python-jose[cryptography]>=3.3.0
+google-auth>=2.25.0
+google-auth-oauthlib>=1.2.0
+google-api-python-client>=2.110.0
+langgraph>=0.0.40
+
+# requirements-dev.txt - Development dependencies
+black>=23.12.0
+isort>=5.13.0
+flake8>=6.1.0
+mypy>=1.8.0
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-asyncio>=0.23.0
+httpx>=0.26.0
+pytest-mock>=3.12.0
+factory-boy>=3.3.0
+faker>=21.0.0
+pytest-xdist>=3.5.0
+```
 
 ### Tools Configuration
 
@@ -296,6 +388,57 @@ warn_unused_configs = true
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
+addopts = "--cov=src --cov-report=html --cov-report=term-missing"
+```
+
+### Development Workflow Scripts
+
+Create a `scripts/` directory with development utilities:
+
+```bash
+# scripts/setup.sh - Initial development setup
+#!/bin/bash
+set -e
+
+echo "Setting up development environment..."
+
+# Create virtual environment if it doesn't exist
+if [ ! -d "venv" ]; then
+    python -m venv venv
+fi
+
+# Activate virtual environment
+source venv/bin/activate
+
+# Upgrade pip
+pip install --upgrade pip
+
+# Install development dependencies
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+
+echo "Development environment setup complete!"
+```
+
+```bash
+# scripts/test.sh - Run all tests with coverage
+#!/bin/bash
+source venv/bin/activate
+pytest --cov=src --cov-report=html --cov-report=term-missing
+```
+
+```bash
+# scripts/lint.sh - Run all linting tools
+#!/bin/bash
+source venv/bin/activate
+echo "Running Black..."
+black .
+echo "Running isort..."
+isort .
+echo "Running flake8..."
+flake8 .
+echo "Running mypy..."
+mypy .
 ```
 
 ## Specific Refactoring Tasks
@@ -776,10 +919,14 @@ async def domain_error_handler(
 ## Migration Checklist
 
 ### Pre-Migration
+- [ ] Set up new virtual environment with pip
+- [ ] Create requirements.txt and requirements-dev.txt
 - [ ] Set up parallel directory structure (`src/`)
-- [ ] Configure testing framework
-- [ ] Set up CI/CD for new structure
+- [ ] Create development scripts (setup.sh, test.sh, lint.sh)
+- [ ] Configure testing framework with pytest
+- [ ] Set up CI/CD for new structure with pip install steps
 - [ ] Create feature flags for gradual migration
+- [ ] Update .gitignore to include venv/ and exclude __pycache__
 
 ### Phase 1: Core Components
 - [ ] Migrate configuration to Pydantic Settings
@@ -819,6 +966,26 @@ async def domain_error_handler(
 
 ### Post-Migration
 - [ ] Remove old `app/` directory
-- [ ] Update documentation
+- [ ] Update documentation with pip setup instructions
+- [ ] Update Dockerfile to use pip instead of poetry
 - [ ] Performance benchmarking
-- [ ] Production deployment 
+- [ ] Production deployment with pip-based requirements
+
+### Docker Integration
+- [ ] Update Dockerfile for pip-based dependency management:
+  ```dockerfile
+  # Multi-stage build for pip
+  FROM python:3.11-slim as builder
+  
+  WORKDIR /app
+  COPY requirements.txt requirements-dev.txt ./
+  RUN pip install --no-cache-dir --user -r requirements.txt
+  
+  FROM python:3.11-slim
+  WORKDIR /app
+  COPY --from=builder /root/.local /root/.local
+  COPY . .
+  
+  ENV PATH=/root/.local/bin:$PATH
+  CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+  ``` 
