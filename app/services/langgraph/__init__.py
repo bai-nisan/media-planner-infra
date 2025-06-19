@@ -8,4 +8,4 @@ including Workspace, Planning, Insights, and Supervisor agents.
 from .agent_service import AgentService
 from .workflows.supervisor import SupervisorWorkflow
 
-__all__ = ["AgentService", "SupervisorWorkflow"] 
+__all__ = ["AgentService", "SupervisorWorkflow"]

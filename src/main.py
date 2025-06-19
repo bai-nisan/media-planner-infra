@@ -1,0 +1,189 @@
+"""
+Media Planning Platform API - Clean Architecture Entry Point
+
+FastAPI backend service for comprehensive media planning platform.
+This is the new Clean Architecture entry point that will gradually replace the old main.py.
+During refactoring, it imports from the old app/ structure to maintain functionality.
+"""
+
+import logging
+from contextlib import asynccontextmanager
+
+from fastapi import Depends, FastAPI
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.api.v1.api import api_router
+
+# TODO: These imports will be gradually updated to use src.core during refactoring
+from app.core.config import settings
+from app.core.exceptions import MediaPlannerException
+from app.dependencies import get_temporal_service
+from app.middleware.error_handling import (
+    ErrorHandlingMiddleware,
+    create_exception_handlers,
+)
+from app.services.langgraph.agent_service import get_agent_service
+from app.services.temporal_service import TemporalService
+from app.temporal.client import close_temporal_client, get_temporal_client
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Manage application lifecycle, including Temporal client setup.
+
+    This context manager handles the startup and shutdown of the Temporal client
+    and other resources that need proper lifecycle management.
+    """
+    logger.info("Starting up Media Planning Platform API (Clean Architecture)")
+
+    try:
+        # Initialize Temporal client on startup
+        try:
+            temporal_client = await get_temporal_client(settings)
+            logger.info("Temporal client connected successfully")
+
+            # Store temporal client in app state
+            app.state.temporal_client = temporal_client
+            app.state.temporal_service = TemporalService(temporal_client, settings)
+        except Exception as e:
+            logger.error(f"Failed to initialize Temporal client: {e}")
+            # Continue without Temporal for now - this allows the app to start
+            # even if Temporal is not available
+            app.state.temporal_client = None
+            app.state.temporal_service = None
+
+        # Initialize LangGraph agent service
+        try:
+            agent_service = await get_agent_service()
+            app.state.agent_service = agent_service
+            logger.info("LangGraph agent service initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize agent service: {e}")
+            # Continue without agent service for now - this allows the app to start
+            # even if agents are not fully configured
+            app.state.agent_service = None
+
+        yield
+
+    except Exception as e:
+        logger.error(f"Failed to initialize application: {e}")
+        raise
+    finally:
+        # Cleanup on shutdown
+        logger.info("Shutting down Media Planning Platform API")
+        try:
+            # Shutdown agent service if initialized
+            if hasattr(app.state, "agent_service") and app.state.agent_service:
+                await app.state.agent_service.shutdown()
+                logger.info("Agent service shutdown completed")
+
+            if app.state.temporal_client:
+                await close_temporal_client()
+                logger.info("Temporal client disconnected successfully")
+            else:
+                logger.info("No Temporal client to disconnect")
+        except Exception as e:
+            logger.error(f"Error during shutdown: {e}")
+
+
+def create_app() -> FastAPI:
+    """Create and configure the FastAPI application."""
+    app = FastAPI(
+        title=settings.PROJECT_NAME,
+        description="API for comprehensive media planning platform with multi-tenant architecture, real-time analytics, and campaign management",
+        version=settings.VERSION,
+        docs_url="/api/docs",
+        redoc_url="/api/redoc",
+        openapi_url="/api/v1/openapi.json",
+        lifespan=lifespan,  # Add lifecycle management
+    )
+
+    # Add error handling middleware
+    app.add_middleware(
+        ErrorHandlingMiddleware,
+        include_details_in_prod=False,  # Set to True if you want detailed errors in production
+    )
+
+    # Configure CORS middleware
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Add global exception handlers
+    exception_handlers = create_exception_handlers()
+    for exception_type, handler in exception_handlers.items():
+        app.add_exception_handler(exception_type, handler)
+
+    # Include API router
+    app.include_router(api_router, prefix="/api/v1")
+
+    return app
+
+
+# Create FastAPI application instance
+app = create_app()
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint."""
+    from datetime import datetime
+
+    basic_health = {
+        "status": "healthy",
+        "service": "media-planner-api",
+        "version": settings.VERSION,
+        "timestamp": datetime.utcnow().isoformat(),
+        "architecture": "clean_architecture_transition",
+    }
+
+    # Try to include Temporal health status
+    try:
+        if hasattr(app.state, "temporal_service") and app.state.temporal_service:
+            temporal_health = await app.state.temporal_service.health_check()
+            basic_health["temporal"] = temporal_health
+        else:
+            basic_health["temporal"] = {
+                "status": "not_initialized",
+                "message": "Temporal service not yet initialized",
+            }
+    except Exception as e:
+        logger.warning(f"Could not get Temporal health status: {e}")
+        basic_health["temporal"] = {"status": "unavailable", "error": str(e)}
+
+    return basic_health
+
+
+@app.get("/health/temporal")
+async def temporal_health_check(
+    temporal_service: TemporalService = Depends(get_temporal_service),
+):
+    """Detailed Temporal health check endpoint."""
+    return await temporal_service.health_check()
+
+
+@app.get("/")
+async def root():
+    """Root endpoint with basic information."""
+    return {
+        "message": "Media Planning Platform API - Clean Architecture",
+        "version": settings.VERSION,
+        "docs": "/api/docs",
+        "architecture": "transition_to_clean_architecture",
+    }
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "src.main:app", host="0.0.0.0", port=8000, reload=True, log_level="info"
+    )

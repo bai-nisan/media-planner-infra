@@ -2,13 +2,15 @@
 Configuration for LangGraph Multi-Agent System
 """
 
-from typing import Dict, Any, List
-from pydantic import BaseModel, Field
 from enum import Enum
+from typing import Any, Dict, List
+
+from pydantic import BaseModel, Field
 
 
 class AgentType(str, Enum):
     """Agent types in the multi-agent system."""
+
     WORKSPACE = "workspace"
     PLANNING = "planning"
     INSIGHTS = "insights"
@@ -17,6 +19,7 @@ class AgentType(str, Enum):
 
 class AgentConfig(BaseModel):
     """Configuration for individual agents."""
+
     name: str
     type: AgentType
     description: str
@@ -25,36 +28,36 @@ class AgentConfig(BaseModel):
     max_tokens: int = 2000
     tools: List[str] = Field(default_factory=list)
     system_prompt: str = ""
-    
+
     class Config:
         use_enum_values = True
 
 
 class LangGraphConfig(BaseModel):
     """Main configuration for LangGraph multi-agent system."""
-    
+
     # Agent configurations
     agents: Dict[AgentType, AgentConfig] = Field(default_factory=dict)
-    
+
     # Workflow configuration
     max_iterations: int = 10
     timeout_seconds: int = 300
-    
+
     # State persistence
     enable_persistence: bool = True
     state_store_table: str = "agent_states"
-    
+
     # Logging
     log_level: str = "INFO"
     enable_tracing: bool = True
-    
+
     def __init__(self, **data):
         super().__init__(**data)
         self._setup_default_agents()
-    
+
     def _setup_default_agents(self) -> None:
         """Set up default agent configurations."""
-        
+
         # Workspace Agent
         self.agents[AgentType.WORKSPACE] = AgentConfig(
             name="WorkspaceAgent",
@@ -66,7 +69,7 @@ class LangGraphConfig(BaseModel):
                 "google_sheets_reader",
                 "file_parser",
                 "data_validator",
-                "workspace_manager"
+                "workspace_manager",
             ],
             system_prompt="""You are the Workspace Agent responsible for managing data extraction and workspace operations.
             
@@ -76,9 +79,9 @@ Your primary responsibilities:
 - Manage file operations and workspace structure
 - Handle data transformations for downstream agents
 
-Always ensure data quality and provide detailed validation reports."""
+Always ensure data quality and provide detailed validation reports.""",
         )
-        
+
         # Planning Agent
         self.agents[AgentType.PLANNING] = AgentConfig(
             name="PlanningAgent",
@@ -90,7 +93,7 @@ Always ensure data quality and provide detailed validation reports."""
                 "budget_optimizer",
                 "campaign_planner",
                 "strategy_generator",
-                "performance_predictor"
+                "performance_predictor",
             ],
             system_prompt="""You are the Planning Agent responsible for developing intelligent campaign strategies.
 
@@ -101,9 +104,9 @@ Your primary responsibilities:
 - Predict performance outcomes
 - Create detailed implementation plans
 
-Always provide data-driven recommendations with clear reasoning."""
+Always provide data-driven recommendations with clear reasoning.""",
         )
-        
+
         # Insights Agent
         self.agents[AgentType.INSIGHTS] = AgentConfig(
             name="InsightsAgent",
@@ -115,7 +118,7 @@ Always provide data-driven recommendations with clear reasoning."""
                 "data_analyzer",
                 "trend_detector",
                 "performance_evaluator",
-                "insight_generator"
+                "insight_generator",
             ],
             system_prompt="""You are the Insights Agent responsible for data analysis and insight generation.
 
@@ -126,9 +129,9 @@ Your primary responsibilities:
 - Provide optimization recommendations
 - Create detailed reports
 
-Always provide clear, actionable insights with supporting data."""
+Always provide clear, actionable insights with supporting data.""",
         )
-        
+
         # Supervisor Agent
         self.agents[AgentType.SUPERVISOR] = AgentConfig(
             name="SupervisorAgent",
@@ -140,7 +143,7 @@ Always provide clear, actionable insights with supporting data."""
                 "task_coordinator",
                 "agent_communicator",
                 "workflow_manager",
-                "decision_maker"
+                "decision_maker",
             ],
             system_prompt="""You are the Supervisor Agent responsible for orchestrating the multi-agent workflow.
 
@@ -151,5 +154,5 @@ Your primary responsibilities:
 - Handle conflicts and errors
 - Ensure workflow completion
 
-Always maintain clear communication and efficient task allocation."""
-        ) 
+Always maintain clear communication and efficient task allocation.""",
+        )

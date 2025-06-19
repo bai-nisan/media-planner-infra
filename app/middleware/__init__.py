@@ -1,1 +1,1 @@
-# Middleware module for request processing and authentication 
+# Middleware module for request processing and authentication

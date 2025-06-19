@@ -7,14 +7,14 @@ This package contains services for integrating with Google APIs:
 - Ads API for performance data retrieval
 """
 
+from .ads_client import GoogleAdsClient
 from .auth import GoogleAuthManager
 from .drive_client import GoogleDriveClient
 from .sheets_client import GoogleSheetsClient
-from .ads_client import GoogleAdsClient
 
 __all__ = [
     "GoogleAuthManager",
-    "GoogleDriveClient", 
+    "GoogleDriveClient",
     "GoogleSheetsClient",
     "GoogleAdsClient",
-] 
+]

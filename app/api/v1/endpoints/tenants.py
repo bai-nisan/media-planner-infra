@@ -15,10 +15,10 @@ async def list_tenants():
     return {
         "message": "Tenant endpoints - to be implemented",
         "endpoints": [
-            "GET /tenants/ - List tenants", 
+            "GET /tenants/ - List tenants",
             "POST /tenants/ - Create tenant",
-            "GET /tenants/{tenant_id} - Get tenant details"
-        ]
+            "GET /tenants/{tenant_id} - Get tenant details",
+        ],
     }
 
 
@@ -27,5 +27,5 @@ async def get_tenant(tenant_id: str):
     """Get tenant details by ID (placeholder)."""
     return {
         "tenant_id": tenant_id,
-        "message": "Tenant details endpoint - to be implemented"
-    } 
+        "message": "Tenant details endpoint - to be implemented",
+    }

@@ -3,6 +3,7 @@ Health check endpoints for monitoring and status verification.
 """
 
 from fastapi import APIRouter, status
+
 from app.core.config import settings
 
 router = APIRouter()
@@ -21,5 +22,5 @@ async def get_status():
         "status": "healthy",
         "service": settings.PROJECT_NAME,
         "version": settings.VERSION,
-        "environment": settings.ENVIRONMENT
-    } 
+        "environment": settings.ENVIRONMENT,
+    }

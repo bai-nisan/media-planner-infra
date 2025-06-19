@@ -18,8 +18,8 @@ async def list_campaigns(tenant_id: str):
         "endpoints": [
             f"GET /tenants/{tenant_id}/campaigns/ - List campaigns",
             f"POST /tenants/{tenant_id}/campaigns/ - Create campaign",
-            f"GET /tenants/{tenant_id}/campaigns/{{campaign_id}} - Get campaign details"
-        ]
+            f"GET /tenants/{tenant_id}/campaigns/{{campaign_id}} - Get campaign details",
+        ],
     }
 
 
@@ -29,5 +29,5 @@ async def get_campaign(tenant_id: str, campaign_id: int):
     return {
         "tenant_id": tenant_id,
         "campaign_id": campaign_id,
-        "message": "Campaign details endpoint - to be implemented"
-    } 
+        "message": "Campaign details endpoint - to be implemented",
+    }
