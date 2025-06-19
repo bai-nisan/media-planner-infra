@@ -31,39 +31,52 @@ This infrastructure provides a robust backend for media planning operations with
 
 - Python 3.11 or higher
 - Poetry (dependency management)
-- Docker and Docker Compose (for Temporal)
+- Temporal CLI (replaces Docker setup)
 - PostgreSQL (optional, for production)
 - Redis (for caching)
 
 ### Installation
 
-1. **Clone and setup environment**:
+1. **Install Temporal CLI** (one-time setup):
+```bash
+# macOS
+brew install temporal
+
+# Other platforms: https://docs.temporal.io/cli#install
+```
+
+2. **Clone and setup environment**:
 ```bash
 git clone <repository-url>
 cd media-planner-infra
 poetry install
 ```
 
-2. **Start Temporal cluster**:
+3. **Start Temporal development server**:
 ```bash
-./scripts/temporal-start.sh start
+# Basic development server (in-memory, clean slate each restart)
+temporal server start-dev --ui-port 8088
+
+# With persistence (retains data between restarts)
+temporal server start-dev --ui-port 8088 --db-filename temporal.db
 ```
 
-3. **Configure environment**:
+4. **Configure environment**:
 ```bash
 cp temporal.env .env
 # Edit .env with your configuration
 ```
 
-4. **Run the application**:
+5. **Run the application** (in a new terminal):
 ```bash
 poetry run uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-5. **Access the application**:
+6. **Access the application**:
 - API Documentation: http://localhost:8000/api/docs
 - Health Check: http://localhost:8000/health
 - Temporal Web UI: http://localhost:8088
+- Temporal gRPC: localhost:7233
 
 ## 🏛️ Architecture Components
 
@@ -121,15 +134,26 @@ poetry run pre-commit install
 
 3. **Start development services**:
 ```bash
-# Start Temporal cluster
-./scripts/temporal-start.sh start
+# Start Temporal development server
+temporal server start-dev --ui-port 8088
 
 # Start Redis (if not using Docker)
 redis-server
 
-# Start the FastAPI application
+# Start the FastAPI application (in a new terminal)
 poetry run uvicorn main:app --reload
 ```
+
+### Temporal CLI Advantages
+
+The new Temporal CLI approach provides significant benefits over Docker:
+
+- ✅ **Native Apple Silicon Support**: No ARM64/AMD64 platform issues
+- ✅ **Zero Configuration**: No docker-compose complexity
+- ✅ **Official Recommendation**: Temporal's preferred local development setup
+- ✅ **Instant Startup**: Starts in seconds vs minutes with Docker
+- ✅ **Built-in Persistence**: Optional SQLite persistence with `--db-filename`
+- ✅ **Self-contained**: No external dependencies beyond the CLI
 
 ### Code Quality Tools
 
@@ -192,7 +216,19 @@ The API is versioned and follows RESTful conventions:
 
 ### Overview
 
-Temporal provides durable workflow execution for complex media planning processes that may run for hours or days.
+Temporal provides durable workflow execution for complex media planning processes that may run for hours or days. We now use the official Temporal CLI for local development, which provides a much simpler setup compared to the previous Docker-based approach.
+
+### Development Setup
+
+```bash
+# Start Temporal development server
+temporal server start-dev --ui-port 8088
+
+# With persistence (optional)
+temporal server start-dev --ui-port 8088 --db-filename temporal.db
+```
+
+See [TEMPORAL_SETUP.md](TEMPORAL_SETUP.md) for detailed setup instructions.
 
 ### Workflow Categories
 

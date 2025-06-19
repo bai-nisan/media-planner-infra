@@ -9,7 +9,7 @@ from typing import Dict, Any, List, Optional
 from langgraph.types import Command
 from langgraph.graph import MessagesState
 
-from ..core.base_agent import BaseAgent
+from ..base_agent import BaseAgent
 from ..tools.insights_tools import DataAnalyzer, TrendDetector, InsightGenerator, PerformanceEvaluator
 
 logger = logging.getLogger(__name__)
@@ -18,15 +18,9 @@ logger = logging.getLogger(__name__)
 class InsightsAgent(BaseAgent):
     """Agent responsible for data analysis and insights generation."""
     
-    def __init__(self):
-        super().__init__("insights_agent")
+    def __init__(self, config, supabase_client=None):
+        super().__init__(config=config, supabase_client=supabase_client)
         self.description = "Specialized in data analysis, trend detection, and generating actionable insights"
-        
-        # Initialize tools
-        self.data_analyzer = DataAnalyzer()
-        self.trend_detector = TrendDetector()
-        self.insight_generator = InsightGenerator()
-        self.performance_evaluator = PerformanceEvaluator()
         
         # Define agent capabilities
         self.capabilities = [
@@ -40,7 +34,24 @@ class InsightsAgent(BaseAgent):
             "predictive_analytics"
         ]
         
-        logger.info(f"Initialized {self.name} with capabilities: {', '.join(self.capabilities)}")
+        logger.info(f"Initialized {self.config.name} with capabilities: {', '.join(self.capabilities)}")
+    
+    def _initialize_tools(self) -> Dict[str, Any]:
+        """Initialize insights-specific tools."""
+        tools = {
+            "data_analyzer": DataAnalyzer(),
+            "trend_detector": TrendDetector(),
+            "insight_generator": InsightGenerator(),
+            "performance_evaluator": PerformanceEvaluator()
+        }
+        
+        # Store tools as instance attributes for easy access
+        self.data_analyzer = tools["data_analyzer"]
+        self.trend_detector = tools["trend_detector"]
+        self.insight_generator = tools["insight_generator"]
+        self.performance_evaluator = tools["performance_evaluator"]
+        
+        return tools
     
     async def process_task(self, state: MessagesState) -> Command:
         """Process insights tasks and generate data-driven recommendations."""

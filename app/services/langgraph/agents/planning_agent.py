@@ -9,7 +9,7 @@ from typing import Dict, Any, List, Optional
 from langgraph.types import Command
 from langgraph.graph import MessagesState
 
-from ..core.base_agent import BaseAgent
+from ..base_agent import BaseAgent
 from ..tools.planning_tools import BudgetOptimizer, CampaignPlanner
 
 logger = logging.getLogger(__name__)
@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 class PlanningAgent(BaseAgent):
     """Agent responsible for campaign planning and budget optimization."""
     
-    def __init__(self):
-        super().__init__("planning_agent")
+    def __init__(self, config, supabase_client=None):
+        super().__init__(config=config, supabase_client=supabase_client)
         self.description = "Specialized in budget optimization, campaign planning, and strategic timeline development"
         
         # Initialize tools
@@ -36,7 +36,22 @@ class PlanningAgent(BaseAgent):
             "milestone_planning"
         ]
         
-        logger.info(f"Initialized {self.name} with capabilities: {', '.join(self.capabilities)}")
+        logger.info(f"Initialized {self.config.name} with capabilities: {', '.join(self.capabilities)}")
+    
+    def _initialize_tools(self) -> Dict[str, Any]:
+        """Initialize planning-specific tools."""
+        from ..tools.planning_tools import BudgetOptimizer, CampaignPlanner
+        
+        tools = {
+            "budget_optimizer": BudgetOptimizer(),
+            "campaign_planner": CampaignPlanner()
+        }
+        
+        # Store tools as instance attributes for easy access
+        self.budget_optimizer = tools["budget_optimizer"]
+        self.campaign_planner = tools["campaign_planner"]
+        
+        return tools
     
     async def process_task(self, state: MessagesState) -> Command:
         """Process planning tasks and generate strategic recommendations."""

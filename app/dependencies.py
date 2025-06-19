@@ -16,7 +16,7 @@ from app.services.google import (
     GoogleSheetsClient, 
     GoogleAdsClient
 )
-from app.services.langgraph.agent_service import get_agent_service, AgentService
+# from app.services.langgraph.agent_service import get_agent_service, AgentService  # Temporarily disabled
 from app.core.config import Settings, get_settings
 
 
@@ -246,22 +246,65 @@ def verify_google_auth(
 
 # Agent Service Dependencies
 
-async def get_agent_service_dependency() -> AgentService:
+async def get_agent_service_dependency(request: Request) -> Optional['AgentService']:
     """
-    Get the LangGraph agent service instance.
+    Get the LangGraph agent service instance from request state.
     
+    Args:
+        request: FastAPI request object
+        
     Returns:
-        AgentService: The agent service instance
+        Optional[AgentService]: The agent service instance if available
         
     Raises:
-        HTTPException: If agent service is not available
+        HTTPException: If agent service is not available and required
     """
-    try:
-        agent_service = await get_agent_service()
-        return agent_service
-    except Exception as e:
-        logger.error(f"Failed to get agent service: {e}")
+    if not hasattr(request.app.state, 'agent_service'):
         raise HTTPException(
             status_code=503,
-            detail=f"Agent service is not available: {str(e)}"
-        ) 
+            detail="Agent service is not initialized"
+        )
+    
+    agent_service = request.app.state.agent_service
+    if agent_service is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Agent service failed to initialize"
+        )
+    
+    return agent_service
+
+
+# Authentication Dependencies
+
+async def get_current_user(request: Request) -> dict:
+    """
+    Get current authenticated user from request.
+    
+    Args:
+        request: FastAPI request object
+        
+    Returns:
+        dict: User information
+    """
+    # For development, return a mock user
+    # In production, this would validate JWT tokens
+    return {
+        "sub": "test-user-id",
+        "email": "test@example.com",
+        "tenant_id": "default-tenant"
+    }
+
+
+def get_tenant_context(request: Request, settings: Settings = Depends(get_settings)) -> str:
+    """
+    Get tenant context from request headers or default.
+    
+    Args:
+        request: FastAPI request object
+        settings: Application settings
+        
+    Returns:
+        str: Tenant ID
+    """
+    return get_tenant_id(request, settings) 

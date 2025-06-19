@@ -5,14 +5,11 @@ Tools for data analysis, trend detection, performance evaluation, and insight ge
 """
 
 import logging
-from typing import Dict, Any, List, Optional, Tuple
-from abc import ABC, abstractmethod
 import json
 from datetime import datetime, timedelta
-import pandas as pd
-import numpy as np
-from scipy import stats
 import statistics
+from typing import Dict, Any, List, Optional
+from abc import ABC, abstractmethod
 
 logger = logging.getLogger(__name__)
 

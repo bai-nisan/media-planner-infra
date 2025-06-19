@@ -36,12 +36,19 @@ async def lifespan(app: FastAPI):
     
     try:
         # Initialize Temporal client on startup
-        temporal_client = await get_temporal_client(settings)
-        logger.info("Temporal client connected successfully")
-        
-        # Store temporal client in app state
-        app.state.temporal_client = temporal_client
-        app.state.temporal_service = TemporalService(temporal_client, settings)
+        try:
+            temporal_client = await get_temporal_client(settings)
+            logger.info("Temporal client connected successfully")
+            
+            # Store temporal client in app state
+            app.state.temporal_client = temporal_client
+            app.state.temporal_service = TemporalService(temporal_client, settings)
+        except Exception as e:
+            logger.error(f"Failed to initialize Temporal client: {e}")
+            # Continue without Temporal for now - this allows the app to start
+            # even if Temporal is not available
+            app.state.temporal_client = None
+            app.state.temporal_service = None
         
         # Initialize LangGraph agent service
         try:
@@ -68,8 +75,11 @@ async def lifespan(app: FastAPI):
                 await app.state.agent_service.shutdown()
                 logger.info("Agent service shutdown completed")
             
-            await close_temporal_client()
-            logger.info("Temporal client disconnected successfully")
+            if app.state.temporal_client:
+                await close_temporal_client()
+                logger.info("Temporal client disconnected successfully")
+            else:
+                logger.info("No Temporal client to disconnect")
         except Exception as e:
             logger.error(f"Error during shutdown: {e}")
 

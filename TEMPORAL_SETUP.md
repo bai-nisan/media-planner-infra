@@ -1,258 +1,308 @@
-# Temporal Workflow Engine Setup
+# Temporal Development Server Setup
 
-This document describes the setup and usage of the Temporal workflow engine for the Media Planner infrastructure.
+This document describes the setup and usage of the Temporal development server using the official Temporal CLI for the Media Planner infrastructure.
 
-## Overview
+## 🎯 **Why Temporal CLI?**
 
-The Temporal cluster includes:
-- **Temporal Server** (v1.22.0) - Core workflow engine
-- **PostgreSQL** (v15) - Persistent storage for workflow history
-- **Elasticsearch** (v7.17.9) - Advanced visibility and search
-- **Temporal Web UI** (v2.21.3) - Web interface for monitoring
-- **Admin Tools & CLI** - Management utilities
+We've migrated from Docker-based setup to the official Temporal CLI for local development:
+
+- ✅ **Native Apple Silicon Support**: No ARM64/AMD64 platform emulation issues
+- ✅ **Zero Configuration**: No docker-compose files or complex setup required
+- ✅ **Official Recommendation**: This is Temporal's recommended approach for local development
+- ✅ **Instant Startup**: Starts in seconds vs minutes with Docker
+- ✅ **Built-in Persistence**: Optional SQLite persistence with `--db-filename`
+- ✅ **Self-contained**: No external dependencies beyond the CLI
 
 ## Quick Start
 
 ### Prerequisites
 
-- Docker and Docker Compose installed
-- Ports 5433, 7233, 8088, 9200 available
+- Temporal CLI installed
+- No Docker required!
 
-### Start the Cluster
-
-```bash
-# Start all services
-./scripts/temporal-start.sh start
-
-# Check status
-./scripts/temporal-start.sh status
-
-# View Web UI
-open http://localhost:8088
-```
-
-### Stop the Cluster
+### Installation
 
 ```bash
-./scripts/temporal-start.sh stop
+# macOS
+brew install temporal
+
+# Linux/Windows/Other platforms
+# See: https://docs.temporal.io/cli#install
 ```
 
-## Architecture
-
-### Services
-
-| Service | Port | Description |
-|---------|------|-------------|
-| temporal-server | 7233 | gRPC API endpoint |
-| temporal-web | 8088 | Web UI interface |
-| temporal-postgres | 5433 | PostgreSQL database |
-| temporal-elasticsearch | 9200 | Search and visibility |
-
-### Network Configuration
-
-All services run on the `temporal-network` bridge network, enabling secure inter-service communication.
-
-### Data Persistence
-
-- **PostgreSQL Data**: `temporal-postgres-data` volume
-- **Elasticsearch Data**: `temporal-elasticsearch-data` volume
-
-## Management Commands
-
-The `./scripts/temporal-start.sh` script provides comprehensive cluster management:
+### Start Development Server
 
 ```bash
-# Start cluster
-./scripts/temporal-start.sh start
+# Basic development server (in-memory, clean slate each restart)
+temporal server start-dev --ui-port 8088
 
-# Stop cluster  
-./scripts/temporal-start.sh stop
-
-# Restart cluster
-./scripts/temporal-start.sh restart
-
-# Show status and health
-./scripts/temporal-start.sh status
-
-# View logs (all services)
-./scripts/temporal-start.sh logs
-
-# View logs (specific service)
-./scripts/temporal-start.sh logs temporal-server
-
-# Create namespace
-./scripts/temporal-start.sh namespace media-planner
+# With persistence (retains data between restarts)
+temporal server start-dev --ui-port 8088 --db-filename temporal.db
 ```
 
-## Configuration
+### Access Services
 
-### Environment Variables
-
-Key configuration is managed through `temporal.env`:
-
-```env
-# Database
-POSTGRES_DB=temporal
-POSTGRES_USER=temporal
-POSTGRES_PASSWORD=temporal
-
-# Temporal
-TEMPORAL_ADDRESS=temporal-server:7233
-TEMPORAL_NAMESPACE=default
-
-# CORS (for frontend integration)
-TEMPORAL_CORS_ORIGINS=http://localhost:3000,https://lovable.dev
-```
-
-### Dynamic Configuration
-
-Runtime settings are configured in `temporal-config/development-sql.yaml`:
-
-- Workflow retention (7 days for development)
-- Rate limits (Frontend: 1200 RPS, History: 3000 RPS)
-- Advanced visibility features enabled
-- Worker versioning support
-
-## Integration with FastAPI
-
-### Client Connection
-
-```python
-from temporalio.client import Client
-
-# Connect to Temporal
-client = await Client.connect("localhost:7233")
-```
-
-### Namespace Setup
-
-Create dedicated namespace for media planning workflows:
-
-```python
-# Using the management script
-./scripts/temporal-start.sh namespace media-planner
-
-# Or via Python client
-await client.operator_service.create_namespace(
-    "media-planner",
-    namespace_pb2.NamespaceConfig(
-        workflow_execution_retention_ttl=Duration(days=7)
-    )
-)
-```
+- **Temporal gRPC API**: `localhost:7233`
+- **Temporal Web UI**: http://localhost:8088
+- **Default Namespace**: `default` (created automatically)
 
 ## Development Workflow
 
 ### 1. Start Development Environment
 
 ```bash
-# Start Temporal cluster
-./scripts/temporal-start.sh start
+# Terminal 1: Start Temporal development server
+temporal server start-dev --ui-port 8088
 
-# Verify health
-./scripts/temporal-start.sh status
+# Terminal 2: Start FastAPI application
+cd media-planner-infra
+poetry run uvicorn main:app --reload
 ```
 
-### 2. Access Web UI
+### 2. Verify Connection
+
+```bash
+# Check server status
+temporal server status
+
+# List workflows (should be empty initially)
+temporal workflow list
+```
+
+### 3. Access Web UI
 
 Navigate to http://localhost:8088 to:
 - Monitor workflow executions
 - View workflow history
 - Debug failed workflows
-- Manage namespaces
+- Explore namespace details
 
-### 3. CLI Access
+## Configuration
 
-```bash
-# Execute commands in CLI container
-docker exec -it temporal-cli temporal workflow list
+### Default Settings
 
-# Or install Temporal CLI locally
-brew install temporal
-temporal workflow list --address localhost:7233
+The development server automatically configures:
+- **Database**: In-memory SQLite (or file-based with `--db-filename`)
+- **Namespace**: `default` namespace created automatically
+- **Ports**: 
+  - gRPC: 7233
+  - Web UI: 8088 (configurable with `--ui-port`)
+- **Persistence**: Optional with `--db-filename temporal.db`
+
+### Integration with FastAPI
+
+Our FastAPI backend connects using these default settings:
+
+```python
+# app/core/config.py
+TEMPORAL_HOST = "localhost"
+TEMPORAL_PORT = 7233
+TEMPORAL_NAMESPACE = "default"
+
+# Client connection
+from temporalio.client import Client
+
+client = await Client.connect("localhost:7233")
 ```
 
-## Health Monitoring
+### Environment Variables
 
-The startup script includes comprehensive health checks:
+Update your `.env` file (optional, these are the defaults):
 
-- **PostgreSQL**: Connection and readiness
-- **Elasticsearch**: Cluster health API
-- **Temporal Server**: Workflow list command
-- **Web UI**: HTTP endpoint availability
+```env
+# Temporal Configuration
+TEMPORAL_HOST=localhost
+TEMPORAL_PORT=7233
+TEMPORAL_NAMESPACE=default
+```
 
-### Health Check Endpoints
+## Available Commands
 
-- PostgreSQL: `pg_isready -U temporal`
-- Elasticsearch: `GET /_cluster/health`
-- Temporal: `temporal workflow list`
-- Web UI: `GET http://localhost:8088`
+### Server Management
 
-## Production Considerations
+```bash
+# Start development server
+temporal server start-dev --ui-port 8088
 
-### Security
+# Start with persistence
+temporal server start-dev --ui-port 8088 --db-filename temporal.db
 
-1. **Update default passwords** in production
-2. **Configure TLS** for gRPC connections
-3. **Restrict CORS origins** to production domains
-4. **Enable authentication** for Web UI
+# Check server status
+temporal server status
 
-### Scaling
+# Stop server (Ctrl+C)
+```
 
-1. **Horizontal scaling**: Run multiple Temporal server instances
-2. **Database optimization**: Use managed PostgreSQL with read replicas
-3. **Worker scaling**: Deploy workers across multiple machines
-4. **Load balancing**: Use load balancer for Temporal server endpoints
+### Workflow Management
 
-### Monitoring
+```bash
+# List workflows
+temporal workflow list
 
-1. **Metrics**: Prometheus integration available
-2. **Logging**: Structured JSON logs with ELK stack
-3. **Alerting**: Set up alerts for workflow failures
-4. **Dashboards**: Grafana dashboards for visualization
+# Describe a workflow
+temporal workflow describe --workflow-id=<workflow-id>
+
+# Terminate a workflow
+temporal workflow terminate --workflow-id=<workflow-id>
+
+# Show workflow history
+temporal workflow show --workflow-id=<workflow-id>
+```
+
+### Namespace Management
+
+```bash
+# List namespaces
+temporal operator namespace list
+
+# Create namespace (optional, default exists)
+temporal operator namespace create media-planner
+
+# Describe namespace
+temporal operator namespace describe default
+```
+
+## Development Features
+
+### Built-in Capabilities
+
+- **Web UI**: Full-featured web interface for monitoring
+- **SQLite Database**: Lightweight, file-based persistence option
+- **Hot Reloading**: Restart server quickly for development
+- **Namespace Isolation**: Multiple namespaces support
+- **Worker Versioning**: Built-in support for workflow versioning
+
+### Persistence Options
+
+```bash
+# In-memory (default) - Clean slate each restart
+temporal server start-dev --ui-port 8088
+
+# File-based persistence - Retains data between restarts
+temporal server start-dev --ui-port 8088 --db-filename temporal.db
+
+# Custom database location
+temporal server start-dev --ui-port 8088 --db-filename /path/to/temporal.db
+```
+
+## Integration Examples
+
+### Basic Workflow Execution
+
+```python
+from temporalio import workflow, activity
+from temporalio.client import Client
+
+@activity.defn
+async def hello_activity(name: str) -> str:
+    return f"Hello, {name}!"
+
+@workflow.defn
+class HelloWorkflow:
+    @workflow.run
+    async def run(self, name: str) -> str:
+        return await workflow.execute_activity(
+            hello_activity, name, start_to_close_timeout=timedelta(seconds=10)
+        )
+
+# Execute workflow
+async def main():
+    client = await Client.connect("localhost:7233")
+    result = await client.execute_workflow(
+        HelloWorkflow.run, "Media Planner", id="hello-workflow"
+    )
+    print(result)
+```
+
+### Health Check Integration
+
+```python
+# app/api/v1/health.py
+@router.get("/health/temporal")
+async def temporal_health():
+    try:
+        client = await Client.connect("localhost:7233")
+        # Simple connectivity test
+        await client.list_workflows()
+        return {"status": "healthy", "temporal": "connected"}
+    except Exception as e:
+        return {"status": "unhealthy", "temporal": str(e)}
+```
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Port conflicts**: Ensure ports 5433, 7233, 8088, 9200 are available
-2. **Memory issues**: Elasticsearch requires adequate memory allocation
-3. **Network issues**: Check Docker network configuration
-4. **Permission issues**: Ensure script is executable
+1. **Port Already in Use**:
+   ```bash
+   # Check what's using port 7233 or 8088
+   lsof -i :7233
+   lsof -i :8088
+   
+   # Use different ports
+   temporal server start-dev --port 7234 --ui-port 8089
+   ```
 
-### Debug Commands
+2. **Permission Issues**:
+   ```bash
+   # Make sure temporal CLI is executable
+   which temporal
+   temporal --version
+   ```
+
+3. **Connection Refused**:
+   ```bash
+   # Verify server is running
+   temporal server status
+   
+   # Check connectivity
+   telnet localhost 7233
+   ```
+
+### Logging
 
 ```bash
-# View all service logs
-./scripts/temporal-start.sh logs
+# Enable verbose logging
+temporal server start-dev --ui-port 8088 --log-level debug
 
-# View specific service logs
-./scripts/temporal-start.sh logs temporal-server
-
-# Check container status
-docker ps --filter name=temporal
-
-# Test connectivity
-docker exec temporal-cli temporal workflow list --address temporal-server:7233
+# View server logs (server outputs to console)
 ```
 
-### Log Locations
+## Production Considerations
 
-- **Service logs**: `docker logs <container-name>`
-- **Temporal server logs**: Available through Web UI
-- **Application logs**: Configured per workflow/activity
+### For Production Environments
 
-## Next Steps
+**Do NOT use `temporal server start-dev` in production.** Instead:
 
-1. **Set up Python SDK integration** (Task 2.2)
-2. **Define workflow schemas** (Task 2.3)
-3. **Implement activity handlers** (Task 2.4)
-4. **Configure monitoring** (Task 2.5)
+1. **Temporal Cloud**: Use managed Temporal service
+2. **Self-hosted**: Deploy full Temporal cluster with:
+   - PostgreSQL or Cassandra
+   - Elasticsearch for visibility
+   - Load balancers
+   - TLS/Authentication
 
-## Resources
+### Migration Path
 
-- [Temporal Documentation](https://docs.temporal.io/)
-- [Python SDK Guide](https://docs.temporal.io/docs/python)
-- [Docker Compose Reference](https://docs.docker.com/compose/)
-- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
-- [Elasticsearch Guide](https://www.elastic.co/guide/) 
+```bash
+# Development
+temporal server start-dev --ui-port 8088
+
+# Production
+# Use Temporal Cloud or kubernetes deployment
+# Update connection in app/core/config.py
+```
+
+## Comparison: Docker vs CLI
+
+| Feature | Docker Compose | Temporal CLI |
+|---------|----------------|--------------|
+| Setup Time | 2-5 minutes | 10 seconds |
+| Platform Support | ARM64 issues | Native support |
+| Dependencies | Docker, compose files | Single binary |
+| Persistence | External volumes | Built-in SQLite |
+| Configuration | Multiple files | Single command |
+| Resource Usage | High (multiple containers) | Low (single process) |
+| Debugging | Complex logs | Direct output |
+| Official Support | Community | Official Temporal |
+
+The Temporal CLI approach is simpler, faster, and officially supported for local development! 

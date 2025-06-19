@@ -62,12 +62,7 @@ class TemporalClient:
                 namespace=self.settings.TEMPORAL_NAMESPACE,
                 tls=tls_config,
                 data_converter=data_converter,
-                # Add retry configuration for client calls
-                retry_config=RetryPolicy(
-                    initial_interval=timedelta(seconds=1),
-                    maximum_interval=timedelta(seconds=10),
-                    maximum_attempts=5,
-                ),
+                # Client connect doesn't use retry_config parameter
             )
             
             self._connected = True

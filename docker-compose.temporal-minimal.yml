@@ -26,8 +26,6 @@ networks:
 volumes:
   temporal-postgres-data:
     driver: local
-  temporal-elasticsearch-data:
-    driver: local
 
 services:
   # PostgreSQL Database for Temporal persistence
@@ -42,7 +40,7 @@ services:
     volumes:
       - temporal-postgres-data:/var/lib/postgresql/data
     ports:
-      - "5433:5432"  # Use different port to avoid conflicts
+      - "5433:5432"
     networks:
       - temporal-network
     healthcheck:
@@ -51,41 +49,13 @@ services:
       timeout: 5s
       retries: 5
 
-  # Elasticsearch for advanced visibility (optional but recommended for production)
-  temporal-elasticsearch:
-    image: elasticsearch:7.17.9
-    platform: linux/amd64
-    container_name: temporal-elasticsearch
-    environment:
-      - discovery.type=single-node
-      - ES_JAVA_OPTS=-Xms512m -Xmx512m
-      - xpack.security.enabled=false
-      - bootstrap.memory_lock=true
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
-    volumes:
-      - temporal-elasticsearch-data:/usr/share/elasticsearch/data
-    ports:
-      - "9200:9200"
-    networks:
-      - temporal-network
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
-  # Temporal Server with auto-setup
+  # Temporal Server with auto-setup (minimal without ES)
   temporal-server:
-    image: temporalio/auto-setup:latest
+    image: temporalio/auto-setup:1.22.4
     platform: linux/amd64
     container_name: temporal-server
     depends_on:
       temporal-postgres:
-        condition: service_healthy
-      temporal-elasticsearch:
         condition: service_healthy
     environment:
       - DB=postgresql
@@ -94,32 +64,25 @@ services:
       - POSTGRES_PWD=temporal
       - POSTGRES_SEEDS=temporal-postgres
       - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
-      - ENABLE_ES=true
-      - ES_SEEDS=temporal-elasticsearch
-      - ES_VERSION=v7
+      - ENABLE_ES=false
       - TEMPORAL_CLI_ADDRESS=temporal-server:7233
       - TEMPORAL_ADDRESS=0.0.0.0:7233
       - TEMPORAL_CORS_ORIGINS=http://localhost:3000,http://localhost:8080,https://lovable.dev,https://*.lovable.app
     ports:
       - "7233:7233"   # gRPC endpoint
-      - "7234:7234"   # Membership port
-      - "7235:7235"   # History service
-      - "7239:7239"   # Worker service
-    volumes:
-      - ./temporal-config:/etc/temporal/config/dynamicconfig
     networks:
       - temporal-network
     healthcheck:
-      test: ["CMD", "temporal", "workflow", "list", "--address", "temporal-server:7233"]
+      test: ["CMD", "tctl", "--address", "temporal-server:7233", "cluster", "health"]
       interval: 30s
       timeout: 10s
-      retries: 5
+      retries: 10
       start_period: 30s
     restart: unless-stopped
 
   # Temporal Web UI
   temporal-web:
-    image: temporalio/web:latest
+    image: temporalio/web:2.21.3
     platform: linux/amd64
     container_name: temporal-web
     depends_on:
@@ -133,34 +96,4 @@ services:
       - "8088:8088"
     networks:
       - temporal-network
-    restart: unless-stopped
-
-  # Temporal Admin Tools (for management)
-  temporal-admin-tools:
-    image: temporalio/admin-tools:latest
-    platform: linux/amd64
-    container_name: temporal-admin-tools
-    depends_on:
-      temporal-server:
-        condition: service_healthy
-    environment:
-      - TEMPORAL_ADDRESS=temporal-server:7233
-    networks:
-      - temporal-network
-    command: ["sleep", "infinity"]  # Keep container running for admin commands
-    restart: unless-stopped
-
-  # Optional: Temporal CLI container - removed due to image availability issues
-  # temporal-cli:
-  #   image: temporalio/cli:latest
-  #   platform: linux/amd64
-  #   container_name: temporal-cli
-  #   depends_on:
-  #     temporal-server:
-  #       condition: service_healthy
-  #   environment:
-  #     - TEMPORAL_ADDRESS=temporal-server:7233
-  #   networks:
-  #     - temporal-network
-  #   command: ["sleep", "infinity"]  # Keep container running for CLI access
-  #   restart: unless-stopped 
+    restart: unless-stopped 

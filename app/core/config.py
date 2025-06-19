@@ -133,6 +133,19 @@ class Settings(BaseSettings):
     GOOGLE_ADS_CONFIG_FILE: str = "config/google-ads.yaml"
     GOOGLE_ADS_LOGIN_CUSTOMER_ID: Optional[str] = None  # Manager account ID
     
+    # AI/LLM API Configuration
+    OPENAI_API_KEY: Optional[str] = None
+    ANTHROPIC_API_KEY: Optional[str] = None
+    PERPLEXITY_API_KEY: Optional[str] = None
+    GOOGLE_API_KEY: Optional[str] = None
+    MISTRAL_API_KEY: Optional[str] = None
+    AZURE_OPENAI_API_KEY: Optional[str] = None
+    AZURE_OPENAI_ENDPOINT: Optional[str] = None
+    OPENROUTER_API_KEY: Optional[str] = None
+    XAI_API_KEY: Optional[str] = None
+    OLLAMA_API_KEY: Optional[str] = None
+    OLLAMA_BASE_URL: str = "http://localhost:11434/api"
+
     # Google API Scopes
     GOOGLE_DRIVE_SCOPES: List[str] = [
         "https://www.googleapis.com/auth/drive.metadata.readonly",

@@ -9,10 +9,9 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 from app.core.config import settings
-from app.services.database import get_supabase_client
+from app.services.database import get_database_bridge
 
 from .config import LangGraphConfig, AgentType
-from .agents import WorkspaceAgent, PlanningAgent, InsightsAgent, SupervisorAgent
 
 
 logger = logging.getLogger(__name__)
@@ -34,8 +33,12 @@ class AgentService:
         try:
             # Initialize Supabase client for state persistence
             if self.config.enable_persistence:
-                self.supabase_client = await get_supabase_client()
-                logger.info("Connected to Supabase for agent state persistence")
+                # Temporarily disable Supabase client due to proxy parameter issue
+                logger.info("Supabase persistence temporarily disabled due to proxy parameter compatibility issue")
+                self.supabase_client = None
+                # db_bridge = get_database_bridge()
+                # self.supabase_client = db_bridge.client
+                # logger.info("Connected to Supabase for agent state persistence")
             
             # Initialize all agents
             await self._initialize_agents()
@@ -48,8 +51,14 @@ class AgentService:
             raise
     
     async def _initialize_agents(self) -> None:
-        """Initialize all agents with their configurations."""
+        """Initialize all agents with their configurations using lazy imports."""
         try:
+            # Use lazy imports to prevent circular dependencies
+            from .agents.workspace_agent import WorkspaceAgent
+            from .agents.planning_agent import PlanningAgent
+            from .agents.insights_agent import InsightsAgent
+            from .agents.supervisor_agent import SupervisorAgent
+            
             # Initialize Workspace Agent
             workspace_config = self.config.agents[AgentType.WORKSPACE]
             self.agents[AgentType.WORKSPACE] = WorkspaceAgent(
@@ -196,6 +205,9 @@ class AgentService:
             logger.error(f"Health check failed: {e}")
             return {
                 "service_status": "unhealthy",
+                "agents": {},
+                "total_agents": 0,
+                "healthy_agents": 0,
                 "error": str(e),
                 "timestamp": datetime.utcnow().isoformat()
             }

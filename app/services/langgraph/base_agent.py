@@ -8,8 +8,8 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
-from langchain.chat_models import ChatOpenAI
-from langchain.schema import BaseMessage, HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langgraph.graph import MessagesState
 from langgraph.types import Command
 
@@ -18,7 +18,7 @@ from .state_manager import StateManager, StateOperationType
 from .error_handler import ErrorHandler, ErrorSeverity, ErrorCategory, RetryConfig
 from .resource_manager import ResourceManager, ResourceType
 from .monitoring import MonitoringService, MetricType
-from .state_models import AgentRole
+from .workflows.state_models import AgentRole
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,10 @@ class BaseAgent(ABC):
     ):
         self.config = config
         self.supabase_client = supabase_client
-        self.agent_id = f"{config.type.value}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        
+        # Handle both string and enum types for config.type
+        agent_type_str = config.type.value if hasattr(config.type, 'value') else str(config.type)
+        self.agent_id = f"{agent_type_str}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
         # Enhanced management components
         self.state_manager = state_manager or StateManager(supabase_client)
@@ -75,13 +78,28 @@ class BaseAgent(ABC):
     
     def _get_agent_role(self) -> AgentRole:
         """Map AgentType to AgentRole."""
+        # Import AgentType here to handle the mapping
+        from .config import AgentType
+        
+        # Handle both string and enum types for config.type
+        if isinstance(self.config.type, str):
+            # Convert string to AgentType enum
+            try:
+                agent_type = AgentType(self.config.type)
+            except ValueError:
+                # If string doesn't match any enum value, default to SUPERVISOR
+                logger.warning(f"Unknown agent type: {self.config.type}, defaulting to SUPERVISOR")
+                agent_type = AgentType.SUPERVISOR
+        else:
+            agent_type = self.config.type
+        
         mapping = {
             AgentType.WORKSPACE: AgentRole.WORKSPACE,
             AgentType.PLANNING: AgentRole.PLANNING,
             AgentType.INSIGHTS: AgentRole.INSIGHTS,
             AgentType.SUPERVISOR: AgentRole.SUPERVISOR
         }
-        return mapping.get(self.config.type, AgentRole.SUPERVISOR)
+        return mapping.get(agent_type, AgentRole.SUPERVISOR)
     
     @abstractmethod
     def _initialize_tools(self) -> Dict[str, Any]:
@@ -254,9 +272,12 @@ class BaseAgent(ABC):
     
     async def health_check(self) -> Dict[str, Any]:
         """Perform comprehensive health check for the agent."""
+        # Handle both string and enum types for config.type
+        agent_type_str = self.config.type.value if hasattr(self.config.type, 'value') else str(self.config.type)
+        
         health_data = {
             "agent_id": self.agent_id,
-            "agent_type": self.config.type.value,
+            "agent_type": agent_type_str,
             "agent_role": self.agent_role.value,
             "tools_count": len(self.tools),
             "timestamp": datetime.utcnow().isoformat()

@@ -4,10 +4,7 @@ LangGraph Agents Module
 Contains all agent implementations for the multi-agent system.
 """
 
-from .workspace_agent import WorkspaceAgent
-from .planning_agent import PlanningAgent
-from .insights_agent import InsightsAgent
-from .supervisor_agent import SupervisorAgent
+# Use lazy imports to avoid circular dependencies - agents should be imported directly
 
 __all__ = [
     "WorkspaceAgent",

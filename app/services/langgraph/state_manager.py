@@ -19,7 +19,7 @@ from enum import Enum
 import json
 import psutil
 
-from .state_models import AgentState, AgentRole, WorkflowStage
+from .workflows.state_models import AgentState, AgentRole, WorkflowStage
 from .error_handler import ErrorSeverity, ErrorHandler
 
 logger = logging.getLogger(__name__)

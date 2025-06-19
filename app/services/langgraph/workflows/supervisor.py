@@ -22,7 +22,8 @@ from .commands import (
     TaskAssignmentCommand, ResultDeliveryCommand, WorkflowControlCommand,
     create_command, CommandType
 )
-from ..agents import WorkspaceAgent, PlanningAgent, InsightsAgent, SupervisorAgent
+# NOTE: Removed circular import - agents will be injected
+# from ..agents import WorkspaceAgent, PlanningAgent, InsightsAgent, SupervisorAgent
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ class SupervisorWorkflow:
         self.command_queue: List[CommandInterface] = []
         self.execution_history: List[Dict[str, Any]] = []
         
-        # Initialize the workflow
+        # Initialize the workflow (agents will be injected later)
         self._initialize_agents()
         self._build_state_graph()
     
